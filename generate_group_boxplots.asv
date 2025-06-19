@@ -21,11 +21,11 @@ runTag  = datestr(now,"yyyymmdd_HHMM");
 
 %% 2. 读取 Excel（强制列类型为 double，"--"→NaN） ------------------------
 sheetNm = "传感器监测数据报表";
-opts    = detectImportOptions("data.xlsx", Sheet=sheetNm);
+opts    = detectImportOptions("data.xlsx", Sheet=sheetNm,VariableNamingRule="preserve");
 
 % 采集时间列
-opts = setvartype(opts, "采集时间",  "datetime");
-opts = setvaropts(opts, "采集时间",  InputFormat="yyyy-MM-dd HH:mm:ss");
+opts = setvartype(opts, "SamplingTime",  "datetime");
+opts = setvaropts(opts, "SamplingTime",  InputFormat="yyyy-MM-dd HH:mm:ss");
 
 % 所有传感器列
 sensorVars = opts.VariableNames(2:end);           % 第 2 列开始
@@ -35,7 +35,7 @@ opts = setvaropts(opts, sensorVars, TreatAsMissing="--");
 T = readtable("data.xlsx", opts);
 
 % 截取时间段
-T = T(T.采集时间 >= tStart & T.采集时间 <= tEnd, :);
+T = T(T.SamplingTime >= tStart & T.SamplingTime <= tEnd, :);
 if isempty(T)
     warning("时间段 %s ~ %s 内无数据！", string(tStart), string(tEnd)); 
     return
@@ -56,18 +56,48 @@ for g = 1:numel(groupDef)
         continue
     end
 
-    % --------- 画图 ------------------------------------------------------
+    % ---------- 绘图（boxplot + whisker=100） ----------------------------
     fig = figure(Visible="off", Position=[100 100 600 300]);
-    boxchart(dataMat, Whisker=100);  hold on
 
-    % 阈值线（最保守：组内最小/最大）
-    lim = limitTab(limitTab.Group == gName, :);
-    yline([min(lim.YellowLower) max(lim.YellowUpper)], ...
-          LineStyle="--", Color=[0.929 0.694 0.125]);
-    yline([min(lim.RedLower)    max(lim.RedUpper)], ...
-          LineStyle="-",  Color=[0.635 0.078 0.184]);
+    % ① 画箱线图
+    boxplot(dataMat, 'Whisker', 100, 'Symbol','');  hold on
 
-    ylabel("με / °");
+    % ② X 轴显示真实测点编号
+    presentMask = ismember(members, T.Properties.VariableNames);
+    labels      = members(presentMask);
+    set(gca, 'XTick', 1:numel(labels), ...
+             'XTickLabel', labels, ...
+             'XTickLabelRotation', 30, ...
+             'TickLabelInterpreter', 'none');
+
+    % ③ 叠加黄色 / 红色阈值线（每个测点单独，线段只跨箱体宽度）
+    limRows = limitTab(strcmp(limitTab.Group, gName), :);
+    halfLen = 0.30;                       % 半宽度 → 总宽 0.60
+    for k = 1:numel(labels)
+        sName = labels{k};
+        thr   = limRows(strcmp(limRows.Sensor, sName), :);
+
+        % 黄色上下限（实线）
+        line([k-halfLen k+halfLen], [thr.YellowLower thr.YellowLower], ...
+             'Color',[0.929 0.694 0.125],'LineStyle','-');
+        line([k-halfLen k+halfLen], [thr.YellowUpper thr.YellowUpper], ...
+             'Color',[0.929 0.694 0.125],'LineStyle','-');
+
+        % 红色上下限（实线）
+        line([k-halfLen k+halfLen], [thr.RedLower thr.RedLower], ...
+             'Color',[0.635 0.078 0.184],'LineStyle','-');
+        line([k-halfLen k+halfLen], [thr.RedUpper thr.RedUpper], ...
+             'Color',[0.635 0.078 0.184],'LineStyle','-');
+    end
+
+    % ④ y 轴标签
+    if strcmp(limRows.Unit{1}, 'με')
+        ylabel("应变（με）");
+    else
+        ylabel("倾角（°）");
+    end
+
+    % ⑤ 标题 & ylim
     title(sprintf("组 %s  %s — %s", gName, ...
         datestr(tStart,"yyyy-mm-dd"), datestr(tEnd,"yyyy-mm-dd")));
 
@@ -75,6 +105,7 @@ for g = 1:numel(groupDef)
         ylim(ylimDict(gName));
     end
     hold off
+
 
     % --------- 保存：PNG / EMF / FIG ------------------------------------
     base = sprintf("Box_%s_%s_%s", gName, dateTag, runTag);
@@ -189,9 +220,17 @@ limitTab = cell2table(limitCell, 'VariableNames', ...
 
 % ------------------ ylim 字典 -------------------------------------------
 ylimDict = containers.Map;
-ylimDict('B') = [-350 370];
-ylimDict('H') = [-350 370];
+ylimDict('B') = [-350  370];   % 第一跨跨中
+ylimDict('C') = [-220  150];   % 12# 墩墩顶
+ylimDict('D') = [-210  430];   % 第二跨跨中
+ylimDict('E') = [-260  240];   % 13# 墩墩顶
+ylimDict('F') = [-210  430];   % 第三跨跨中
+ylimDict('G') = [-220  150];   % 14# 墩墩顶
+ylimDict('H') = [-350  370];   % 第四跨跨中
+ylimDict('L') = [-350  370];   % 塔中
+ylimDict('K') = [-350  370];   % 塔底
 ylimDict('T') = [-0.06 0.06];
+
 end
 %% ------------------------------------------------------------------------
 function [yMat, idxOK] = localExtract(T, members)

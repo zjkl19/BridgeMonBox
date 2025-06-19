@@ -15,7 +15,96 @@ end
 
 dateTag = sprintf("%s-%s", datestr(tStart,"yyyymmdd"), datestr(tEnd,"yyyymmdd"));
 runTag  = datestr(now,"yyyymmdd_HHMM");
+%% 0.  修正量（基准值，默认全 0，可自行修改）===============================
+corrMap = containers.Map();
 
+% —— 第一跨跨中 B ———————————————————————————————
+corrMap('SB-1') = 0;
+corrMap('SB-2') = 0;
+corrMap('SB-3') = 0;
+corrMap('SB-4') = 0;
+corrMap('SB-5') = 0;
+corrMap('SB-6') = 0;
+
+% —— 12# 墩墩顶 C ———————————————————————————————
+corrMap('SC-1') = 0;
+corrMap('SC-2') = 0;
+corrMap('SC-3') = 0;
+corrMap('SC-4') = 0;
+corrMap('SC-5') = 0;
+corrMap('SC-6') = 0;
+
+% —— 第二跨跨中 D ——————————————————————————————
+corrMap('SD-1') = 0;
+corrMap('SD-2') = 0;
+corrMap('SD-3') = 0;
+corrMap('SD-4') = 0;
+corrMap('SD-5') = 0;
+corrMap('SD-6') = 0;
+
+% —— 13# 墩墩顶 E ———————————————————————————————
+corrMap('SE-1') = 0;
+corrMap('SE-2') = 0;
+corrMap('SE-3') = 0;
+corrMap('SE-4') = 0;
+corrMap('SE-5') = 0;
+corrMap('SE-6') = 0;
+
+% —— 第三跨跨中 F ——————————————————————————————
+corrMap('SF-1') = 0;
+corrMap('SF-2') = 0;
+corrMap('SF-3') = 0;
+corrMap('SF-4') = 0;
+corrMap('SF-5') = 0;
+corrMap('SF-6') = 0;
+
+% —— 14# 墩墩顶 G ———————————————————————————————
+corrMap('SG-1') = 0;
+corrMap('SG-2') = 0;
+corrMap('SG-3') = 0;
+corrMap('SG-4') = 0;
+corrMap('SG-5') = 0;
+corrMap('SG-6') = 0;
+
+% —— 第四跨跨中 H ——————————————————————————————
+corrMap('SH-1') = 0;
+corrMap('SH-2') = 0;
+corrMap('SH-3') = 0;
+corrMap('SH-4') = 0;
+corrMap('SH-5') = 0;
+corrMap('SH-6') = 0;
+
+% —— 塔中 L ————————————————————————————————————————
+corrMap('SL-1') = 0;
+corrMap('SL-2') = 0;
+corrMap('SL-3') = 0;
+corrMap('SL-4') = 0;
+corrMap('SL-5') = 0;
+corrMap('SL-6') = 0;
+corrMap('SL-7') = 0;
+corrMap('SL-8') = 0;
+corrMap('SL-9') = 0;
+corrMap('SL-10') = 0;
+
+% —— 塔底 K ————————————————————————————————————————
+corrMap('SK-1')  = 0;
+corrMap('SK-2')  = 0;
+corrMap('SK-3')  = 0;
+corrMap('SK-4')  = 0;
+corrMap('SK-5')  = 0;
+corrMap('SK-6')  = 0;
+corrMap('SK-7')  = 0;
+corrMap('SK-8')  = 0;
+corrMap('SK-9')  = 0;
+corrMap('SK-10') = 0;
+corrMap('SK-11') = 0;
+corrMap('SK-12') = 0;
+
+% —— 桥塔倾角 T ————————————————————————————————————
+corrMap('Q1-Z') = -1.422;    %2022-08-02
+corrMap('Q1-H') = -1.185;    %2022-08-02
+corrMap('Q2-Z') = -1.796;    %2022-10-01
+corrMap('Q2-H') = -0.507;    %2022-10-01
 %% 1. 组定义、阈值、ylim ----------------------------------------------------
 [groupDef, limitTab, ylimDict] = localGroupAndLimits();
 
@@ -55,7 +144,18 @@ for g = 1:numel(groupDef)
         warning("组 %s 在所选时间段无有效数据，跳过。", gName);
         continue
     end
-
+    % === 应用“修正量” ===================================================
+        if ~isempty(dataMat)
+            corrVec = zeros(1, size(dataMat,2));           % 默认 0
+            presentMask = ismember(members, T.Properties.VariableNames);
+            labels      = members(presentMask);            % 与 dataMat 列对应
+            for k = 1:numel(labels)
+                if isKey(corrMap, labels{k})
+                    corrVec(k) = corrMap(labels{k});
+                end
+            end
+            dataMat = dataMat + corrVec;                   % 行向量广播到所有行
+        end
     % ---------- 绘图（boxplot + whisker=100） ----------------------------
     fig = figure(Visible="off", Position=[100 100 600 300]);
 
@@ -85,9 +185,9 @@ for g = 1:numel(groupDef)
 
         % 红色上下限（实线）
         line([k-halfLen k+halfLen], [thr.RedLower thr.RedLower], ...
-             'Color',[0.635 0.078 0.184],'LineStyle','-');
+             'Color',[1 0 0],'LineStyle','-');
         line([k-halfLen k+halfLen], [thr.RedUpper thr.RedUpper], ...
-             'Color',[0.635 0.078 0.184],'LineStyle','-');
+             'Color',[1 0 0],'LineStyle','-');
     end
 
     % ④ y 轴标签
@@ -104,6 +204,14 @@ for g = 1:numel(groupDef)
     if isKey(ylimDict, gName)
         ylim(ylimDict(gName));
     end
+    % === 智能 y-ticks：根据量纲选步长 ==============================
+    yL = ylim;                       % 当前 y 轴范围
+    if strcmp(limRows.Unit{1}, 'με')     % —— 应变
+        step = 100;                      % 100 με 一格（改这里即可）
+    else                                  % —— 倾角
+        step = 0.02;                     % 0.02° 一格
+    end
+    yticks(ceil(yL(1)/step)*step : step : floor(yL(2)/step)*step);
     hold off
 
 
@@ -220,14 +328,16 @@ limitTab = cell2table(limitCell, 'VariableNames', ...
 
 % ------------------ ylim 字典 -------------------------------------------
 ylimDict = containers.Map;
-ylimDict('B') = [-350  370];   % 第一跨跨中
-ylimDict('C') = [-220  150];   % 12# 墩墩顶
-ylimDict('D') = [-210  430];   % 第二跨跨中
-ylimDict('E') = [-260  240];   % 13# 墩墩顶
-ylimDict('F') = [-210  430];   % 第三跨跨中
-ylimDict('G') = [-220  150];   % 14# 墩墩顶
-ylimDict('H') = [-350  370];   % 第四跨跨中
-ylimDict('T') = [-0.06 0.06];
+ylimDict('B') = [-500  500];   % 第一跨跨中
+ylimDict('C') = [-500  500];   % 12# 墩墩顶
+ylimDict('D') = [-500  500];   % 第二跨跨中
+ylimDict('E') = [-500  500];   % 13# 墩墩顶
+ylimDict('F') = [-500  500];   % 第三跨跨中
+ylimDict('G') = [-500  500];   % 14# 墩墩顶
+ylimDict('H') = [-500  500];   % 第四跨跨中
+ylimDict('L') = [-300  300];   % 塔中
+ylimDict('K') = [-300  300];   % 塔底
+ylimDict('T') = [-0.10 0.10];  % 所有倾角
 
 end
 %% ------------------------------------------------------------------------
