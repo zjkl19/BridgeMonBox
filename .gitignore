@@ -1,0 +1,5 @@
+# 忽略所有 .xlsx 文件
+*.xlsx
+
+# 忽略 results 文件夹及其所有内容
+/results/
