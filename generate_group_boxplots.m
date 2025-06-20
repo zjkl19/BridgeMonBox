@@ -268,6 +268,7 @@ for g = 1:numel(groupDef)
         corrVec = zeros(1, size(dataMat,2));           % 默认 0
         presentMask = ismember(members, T.Properties.VariableNames);
         labels      = members(presentMask);            % 与 dataMat 列对应
+        limRows     = limitTab(strcmp(limitTab.Group, gName), :);  % ★提前放这
         for k = 1:numel(labels)
             if isKey(corrMap, labels{k})
                 corrVec(k) = corrMap(labels{k});
@@ -303,7 +304,12 @@ for g = 1:numel(groupDef)
             statTab.Max   (c) = prc(5);
             statTab.IQR   (c) = prc(4) - prc(2);
         end
-
+        % === 按量纲四舍五入 ==========================================
+        if strcmp(limRows.Unit{1}, 'με')          % 应变
+            statTab{:,:} = round(statTab{:,:});   % 0 位小数
+        else                                       % 倾角
+            statTab{:,:} = round(statTab{:,:}, 3);% 3 位小数
+        end
         % 将表写入 Excel，以组名做工作表
         writetable(statTab, statsXls, 'Sheet', gName, 'WriteRowNames', true);
 
@@ -317,13 +323,14 @@ for g = 1:numel(groupDef)
     % ② X 轴显示真实测点编号
     presentMask = ismember(members, T.Properties.VariableNames);
     labels      = members(presentMask);
+    
     set(gca, 'XTick', 1:numel(labels), ...
         'XTickLabel', labels, ...
         'XTickLabelRotation', 30, ...
         'TickLabelInterpreter', 'none');
 
     % ③ 叠加黄色 / 红色阈值线（每个测点单独，线段只跨箱体宽度）
-    limRows = limitTab(strcmp(limitTab.Group, gName), :);
+    
     halfLen = 0.30;                       % 半宽度 → 总宽 0.60
     for k = 1:numel(labels)
         sName = labels{k};
